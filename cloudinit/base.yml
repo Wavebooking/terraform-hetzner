@@ -20,7 +20,7 @@ users:
       - ALL=(ALL) NOPASSWD:ALL
     shell: /bin/bash
     ssh_import_id:
-      - gh:luizkowalski
+      - gh:schnika
     uid: 1000
 
 write_files:
