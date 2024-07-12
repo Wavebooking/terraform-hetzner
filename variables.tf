@@ -1,33 +1,54 @@
 variable "hetzner_api_key" {
-  description = "The Hetzner Cloud API Token"
+  description = "API key for Hetzner Cloud"
   type        = string
 }
 
-# Hetzner locations
-# https://docs.hetzner.com/cloud/general/locations#what-locations-are-there
-variable "region" {
-  type    = string
-  default = "nbg1"
-}
-
-# Hetnzer Server types:
-# https://docs.hetzner.com/cloud/servers/overview/#shared-vcpu
-variable "server_type" {
-  type    = string
-  default = "cx22"
-}
-
 variable "operating_system" {
-  type    = string
-  default = "ubuntu-24.04"
+  description = "Operating system for the server"
+  type        = string
+  default     = "ubuntu-24.04"
 }
-
-variable "web_servers_count" {
-  type    = number
-  default = 1
-}
-
-variable "accessories_count" {
-  type    = number
-  default = 1
+variable "configurations" {
+  description = "Configuration for each customer and environment"
+  type = map(map(object({
+    region           = string
+    server_type      = string
+    web_server_count = number
+    accessory_count  = number
+    subnet           = string
+  })))
+  default = {
+    HHT = {
+      production = {
+        region           = "nbg1"
+        server_type      = "cx22"
+        web_server_count = 1
+        accessory_count  = 1
+        subnet           = "10.0.1.0/24"
+      }
+      staging = {
+        region           = "nbg1"
+        server_type      = "cx22"
+        web_server_count = 1
+        accessory_count  = 1
+        subnet           = "10.0.0.0/24"
+      }
+    }
+    PRO = {
+      production = {
+        region           = "nbg1"
+        server_type      = "cx22"
+        web_server_count = 0
+        accessory_count  = 0
+        subnet           = "10.0.3.0/24"
+      }
+      staging = {
+        region           = "nbg1"
+        server_type      = "cx22"
+        web_server_count = 0
+        accessory_count  = 0
+        subnet           = "10.0.2.0/24"
+      }
+    }
+  }
 }

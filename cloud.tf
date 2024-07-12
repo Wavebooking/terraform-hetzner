@@ -3,34 +3,104 @@ resource "hcloud_ssh_key" "ssh_key_for_hetzner" {
   public_key = file("~/.ssh/hetzner.pub")
 }
 
+locals {
+  network_environments = flatten([
+    for customer, envs in var.configurations :
+    [
+      for env, config in envs :
+      {
+        customer    = customer
+        environment = env
+        region      = config.region
+        subnet      = config.subnet
+      }
+    ]
+  ])
+}
+
 resource "hcloud_network" "network" {
-  name     = "private-network"
+  name     = "tourrise-network"
   ip_range = "10.0.0.0/16"
 }
 
 resource "hcloud_network_subnet" "network_subnet" {
+  for_each = {
+    for env in local.network_environments :
+    format("%s-%s", env.customer, env.environment) => env
+  }
+
   type         = "cloud"
   network_id   = hcloud_network.network.id
   network_zone = "eu-central"
-  ip_range     = "10.0.0.0/16"
+  ip_range     = each.value.subnet
+}
+
+locals {
+  web_environments = flatten([
+    for customer, envs in var.configurations :
+    [
+      for env, config in envs :
+      [
+        for idx in range(config.web_server_count) :
+        {
+          name         = idx == 0 ? format("%s-%s-web", customer, env) : format("%s-%s-web-%d", customer, env, idx)
+          customer     = customer
+          environment  = env
+          index        = idx
+          region       = config.region
+          server_type  = config.server_type
+          ip           = format("%s%d", replace(config.subnet, "0/24", ""), idx + 2)
+          network_name = format("%s-%s", customer, env)
+        }
+      ]
+    ]
+  ])
+
+  accessory_environments = flatten([
+    for customer, envs in var.configurations :
+    [
+      for env, config in envs :
+      [
+        for idx in range(config.accessory_count) :
+        {
+          name         = idx == 0 ? format("%s-%s-accessories", customer, env) : format("%s-%s-accessories-%d", customer, env, idx)
+          customer     = customer
+          environment  = env
+          index        = idx
+          region       = config.region
+          server_type  = config.server_type
+          ip           = format("%s%d", replace(config.subnet, "0/24", ""), idx + var.configurations[customer][env].web_server_count + 2)
+          network_name = format("%s-%s", customer, env)
+        }
+      ]
+    ]
+  ])
 }
 
 resource "hcloud_server" "web" {
-  count       = var.web_servers_count
-  name        = var.web_servers_count > 1 ? "web-${count.index + 1}" : "web"
+  for_each = {
+    for env in local.web_environments :
+    env.name => env
+  }
+
+  name        = each.value.name
   image       = var.operating_system
-  server_type = var.server_type
-  location    = var.region
+  server_type = each.value.server_type
+  location    = each.value.region
+
   labels = {
-    "ssh"  = "yes",
-    "http" = "yes"
+    ssh         = "yes"
+    http        = "yes"
+    customer    = each.value.customer
+    environment = each.value.environment
+    role        = "web"
   }
 
   user_data = data.cloudinit_config.cloud_config_web.rendered
 
   network {
     network_id = hcloud_network.network.id
-    ip         = "10.0.0.${count.index + 2}"
+    ip         = each.value.ip
   }
 
   ssh_keys = [
@@ -48,21 +118,29 @@ resource "hcloud_server" "web" {
 }
 
 resource "hcloud_server" "accessories" {
-  count       = var.accessories_count
-  name        = var.accessories_count > 1 ? "accessories-${count.index + 1}" : "accessories"
+  for_each = {
+    for env in local.accessory_environments :
+    env.name => env
+  }
+
+  name        = each.value.name
   image       = var.operating_system
-  server_type = var.server_type
-  location    = var.region
+  server_type = each.value.server_type
+  location    = each.value.region
+
   labels = {
-    "http" = "no"
-    "ssh"  = "no"
+    http        = "no"
+    ssh         = "no"
+    customer    = each.value.customer
+    environment = each.value.environment
+    role        = "accessories"
   }
 
   user_data = data.cloudinit_config.cloud_config_accessories.rendered
 
   network {
     network_id = hcloud_network.network.id
-    ip         = "10.0.0.${count.index + var.web_servers_count + 2}"
+    ip         = each.value.ip
   }
 
   ssh_keys = [
@@ -80,22 +158,34 @@ resource "hcloud_server" "accessories" {
 }
 
 resource "hcloud_load_balancer" "web_load_balancer" {
-  count              = var.web_servers_count > 1 ? 1 : 0
-  name               = "web-load-balancer"
+  for_each = {
+    for env in local.web_environments :
+    format("%s-%s", env.customer, env.environment) => env
+    if env.index == 0 && length([for we in local.web_environments : we if we.customer == env.customer && we.environment == env.environment]) > 1
+  }
+
+  name               = format("%s-%s-load-balancer", each.value.customer, each.value.environment)
   load_balancer_type = "lb11"
-  location           = var.region
+  location           = each.value.region
+
+  labels = {
+    customer    = each.value.customer
+    environment = each.value.environment
+  }
 }
 
 resource "hcloud_load_balancer_target" "load_balancer_target" {
-  count            = var.web_servers_count > 1 ? 1 : 0
+  for_each = hcloud_load_balancer.web_load_balancer
+
+  load_balancer_id = each.value.id
   type             = "label_selector"
-  load_balancer_id = hcloud_load_balancer.web_load_balancer[count.index].id
-  label_selector   = "http=yes"
+  label_selector   = format("http=yes,customer=%s,environment=%s", each.value.labels.customer, each.value.labels.environment)
 }
 
 resource "hcloud_load_balancer_service" "load_balancer_service" {
-  count            = var.web_servers_count > 1 ? 1 : 0
-  load_balancer_id = hcloud_load_balancer.web_load_balancer[count.index].id
+  for_each = hcloud_load_balancer.web_load_balancer
+
+  load_balancer_id = each.value.id
   protocol         = "http"
 
   http {
@@ -118,15 +208,12 @@ resource "hcloud_load_balancer_service" "load_balancer_service" {
 }
 
 resource "hcloud_load_balancer_network" "load_balancer_network" {
-  count            = var.web_servers_count > 1 ? 1 : 0
-  load_balancer_id = hcloud_load_balancer.web_load_balancer[count.index].id
-  network_id       = hcloud_network.network.id
-  ip               = "10.0.1.5"
+  for_each = hcloud_load_balancer.web_load_balancer
 
-  # **Note**: the depends_on is important when directly attaching the
-  # server to a network. Otherwise Terraform will attempt to create
-  # server and sub-network in parallel. This may result in the server
-  # creation failing randomly.
+  load_balancer_id = each.value.id
+  network_id       = hcloud_network.network.id
+  ip               = replace(hcloud_network_subnet.network_subnet[format("%s-%s", each.value.labels.customer, each.value.labels.environment)].ip_range, "0/24", "255")
+
   depends_on = [
     hcloud_network.network
   ]
@@ -176,8 +263,8 @@ resource "hcloud_firewall" "allow_http_https" {
   }
 }
 
-resource "hcloud_firewall" "block_all_inboud_traffic" {
-  name = "block-inboud_traffic"
+resource "hcloud_firewall" "block_all_inbound_traffic" {
+  name = "block-inbound-traffic"
   # Empty rule blocks all inbound traffic
   apply_to {
     label_selector = "ssh=no"

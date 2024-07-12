@@ -13,14 +13,20 @@
 
 output "ssh_01_web_config" {
   value = join("\n", [
-    for server in hcloud_server.web[*] :
+    for server in hcloud_server.web :
     format("Host %s\n  HostName %s\n  User kamal", server.name, server.ipv4_address)
   ])
 }
 
 output "ssh_02_accessories_config" {
   value = join("\n", [
-    for server in hcloud_server.accessories[*] :
-    format("Host %s\n  HostName %s\n  User kamal\n  ProxyJump %s", server.name, server.ipv4_address, hcloud_server.web[0].name)
+    for accessory in hcloud_server.accessories :
+    format(
+      "Host %s\n  HostName %s\n  User kamal\n  ProxyJump %s",
+      accessory.name,
+      accessory.ipv4_address,
+      hcloud_server.web[format("%s-%s-web", accessory.labels.customer, accessory.labels.environment)].name
+    )
   ])
 }
+
