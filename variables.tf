@@ -38,15 +38,15 @@ variable "configurations" {
       production = {
         region           = "nbg1"
         server_type      = "cx22"
-        web_server_count = 0
-        accessory_count  = 0
+        web_server_count = 1
+        accessory_count  = 1
         subnet           = "10.0.3.0/24"
       }
       staging = {
         region           = "nbg1"
         server_type      = "cx22"
-        web_server_count = 0
-        accessory_count  = 0
+        web_server_count = 1
+        accessory_count  = 1
         subnet           = "10.0.2.0/24"
       }
     }
