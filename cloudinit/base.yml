@@ -21,6 +21,7 @@ users:
     shell: /bin/bash
     ssh_import_id:
       - gh:schnika
+      - gh:verasophie
     uid: 1000
 
 write_files:

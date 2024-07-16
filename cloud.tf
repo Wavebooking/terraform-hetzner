@@ -115,6 +115,10 @@ resource "hcloud_server" "web" {
     ipv4_enabled = true
     ipv6_enabled = true
   }
+
+  lifecycle {
+    ignore_changes = [user_data]
+  }
 }
 
 resource "hcloud_server" "accessories" {
@@ -155,6 +159,10 @@ resource "hcloud_server" "accessories" {
   depends_on = [
     hcloud_network.network
   ]
+
+  lifecycle {
+    ignore_changes = [user_data]
+  }
 }
 
 resource "hcloud_load_balancer" "web_load_balancer" {
