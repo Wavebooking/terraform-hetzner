@@ -21,14 +21,14 @@ variable "configurations" {
     HHT = {
       production = {
         region           = "nbg1"
-        server_type      = "cx22"
+        server_type      = "cx32"
         web_server_count = 1
         accessory_count  = 1
         subnet           = "10.0.1.0/24"
       }
       staging = {
         region           = "nbg1"
-        server_type      = "cx22"
+        server_type      = "cx32"
         web_server_count = 1
         accessory_count  = 1
         subnet           = "10.0.0.0/24"
@@ -37,7 +37,7 @@ variable "configurations" {
     PRO = {
       production = {
         region           = "nbg1"
-        server_type      = "cx22"
+        server_type      = "cx32"
         web_server_count = 1
         accessory_count  = 1
         subnet           = "10.0.3.0/24"
@@ -48,6 +48,15 @@ variable "configurations" {
         web_server_count = 1
         accessory_count  = 1
         subnet           = "10.0.2.0/24"
+      }
+    }
+    TOURRISE = {
+      demo1 = {
+        region           = "nbg1"
+        server_type      = "cx22"
+        web_server_count = 1
+        accessory_count  = 1
+        subnet           = "10.0.4.0/24"
       }
     }
   }
